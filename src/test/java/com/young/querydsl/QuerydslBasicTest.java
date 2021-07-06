@@ -1,5 +1,6 @@
 package com.young.querydsl;
 
+import com.querydsl.core.QueryResults;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.young.querydsl.entity.Member;
 import com.young.querydsl.entity.QMember;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+
+import java.util.List;
 
 import static com.young.querydsl.entity.QMember.*;
 import static org.assertj.core.api.Assertions.*;
@@ -70,5 +73,42 @@ public class QuerydslBasicTest {
                 .fetchOne();
 
         assertThat(findMember.getUsername()).isEqualTo("member1");
+    }
+
+    @Test
+    public void search() {
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1")
+                        .and(member.age.eq(10)))
+                .fetchOne();
+
+        assertThat(findMember.getUsername()).isEqualTo("member1");
+    }
+
+    @Test
+    public void resultFetch() {
+//        List<Member> members = queryFactory
+//                .selectFrom(member)
+//                .fetch();
+//
+//        Member fetchOne = queryFactory
+//                .selectFrom(member)
+//                .fetchOne();
+//
+//        Member fetchFirst = queryFactory
+//                .selectFrom(QMember.member)
+//                .fetchFirst();// == limit(1).fetchOne()
+
+        QueryResults<Member> results = queryFactory
+                .selectFrom(member)
+                .fetchResults(); // 페이징 정보 포함
+
+        results.getTotal();
+        List<Member> content = results.getResults();
+
+//        long total = queryFactory
+//                .selectFrom(member)
+//                .fetchCount(); // count 쿼리로 변경해서 count 수 조회함
     }
 }
