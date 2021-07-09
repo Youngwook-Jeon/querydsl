@@ -4,6 +4,7 @@ import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.young.querydsl.entity.Member;
+import com.young.querydsl.entity.QMember;
 import com.young.querydsl.entity.Team;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.PersistenceUnit;
 import java.util.List;
 
 import static com.young.querydsl.entity.QMember.member;
@@ -227,6 +230,84 @@ public class QuerydslBasicTest {
         assertThat(result)
                 .extracting("username")
                 .containsExactly("teamA", "teamB");
+    }
+
+    @Test
+    public void join_on_filtering() {
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team).on(team.name.eq("teamA")) // join()으로 바꿀시 이너조인이 되어서 null인 것이 걸러짐
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+        /*
+            tuple = [Member(id=3, username=member1, age=10), Team(id=1, name=teamA)]
+            tuple = [Member(id=4, username=member2, age=20), Team(id=1, name=teamA)]
+            tuple = [Member(id=5, username=member3, age=30), null]
+            tuple = [Member(id=6, username=member4, age=40), null]
+         */
+    }
+
+    // 연관관계가 없는 엔티티 외부 조인
+    @Test
+    public void join_on_no_relation() {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+        em.persist(new Member("teamC"));
+
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(team).on(member.username.eq(team.name))
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+        /*
+            tuple = [Member(id=3, username=member1, age=10), null]
+            tuple = [Member(id=4, username=member2, age=20), null]
+            tuple = [Member(id=5, username=member3, age=30), null]
+            tuple = [Member(id=6, username=member4, age=40), null]
+            tuple = [Member(id=7, username=teamA, age=0), Team(id=1, name=teamA)]
+            tuple = [Member(id=8, username=teamB, age=0), Team(id=2, name=teamB)]
+            tuple = [Member(id=9, username=teamC, age=0), null]
+         */
+    }
+
+    @PersistenceUnit
+    EntityManagerFactory emf;
+
+    @Test
+    public void fetchJoinNo() {
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(QMember.member)
+                .where(QMember.member.username.eq("member1"))
+                .fetchOne();
+
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 미적용").isFalse();
+    }
+
+    @Test
+    public void fetchJoinUse() {
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(QMember.member)
+                .join(member.team, team).fetchJoin()
+                .where(QMember.member.username.eq("member1"))
+                .fetchOne();
+
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 적용").isTrue();
     }
 
 }
